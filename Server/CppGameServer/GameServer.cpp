@@ -30,18 +30,20 @@ void Push()
 	for (int32 i = 0; i < 10000; i++)
 	{
 		// 자물쇠 잠그기
-		//m.lock();
-		LockGuard<mutex> lockGuard(m);
+		// m.lock();
+		// lock_guard<mutex> lockGuard(m);
+		// unique_lock<mutex> uniqueLock(m, defer_lock);
+		// uniqueLock.lock();		// 잠기는 시점을 미룰 수 있다.
 
 		v.push_back(i);
 
 		if (i == 5000) {
-			//m.unlock();
+			// m.unlock();
 			break;
 		}
 		
 		// 자물쇠 풀기
-		//m.unlock();
+		// m.unlock();
 	}
 }
 
@@ -74,4 +76,4 @@ int main()
 // - 프로그램이 영 영 끝나지 않음 ..
 // - RAII 패턴 (Resource Acquisition Is Initialization) 활용
 // - : 클래스를 이용해서 자동으로 lock, unlock 관리
-
+// Mutex 쌩으로 하는 것보다는 lockguard를 사용ㅎ아자.
