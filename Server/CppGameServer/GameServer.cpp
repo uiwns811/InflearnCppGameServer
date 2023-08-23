@@ -1,36 +1,50 @@
 ﻿#include "pch.h"
 #include <iostream>
 #include "CorePch.h"
-
 #include <thread>
-// - 윈도우, 리눅스 관계없이 범용적인 코드 작성 가능
+#include <atomic>
 
-// System Call (OS 커널에 요청 후 OS가 처리)
-// - 스레드 생성
+atomic<int32> sum = 0;
 
-void HelloThread()
+void Add()
 {
-	cout << "Hello Thread~" << endl;
+	for (int32 i = 0; i < 1'000'000; i++)
+		//sum++;
+		sum.fetch_add(1);
+
+	// 디스어셈블리에서 확인한 sum++의 매커니즘
+	// int32 eax = sum;
+	// eax = eax + 1;
+	// sum = eax;
+}
+
+void Sub()
+{
+	for (int32 i = 0; i < 1'000'000; i++)
+		//sum--;
+		sum.fetch_add(-1);
 }
 
 int main()
 {
-	thread t;					// 생성
-	auto id1 = t.get_id();			// 쓰레드 고유의 id	
-	
-	t = thread(HelloThread);	// 실행
+	Add();
+	Sub();
+	cout << sum << endl;
 
-	int32 count = t.hardware_concurrency();		// CPU 코어 개수
-	// - 논리적으로 실행할 수 있는 프로세스의 개수 (0을 리턴하기도 함)
-	auto id2 = t.get_id();			// 쓰레드 고유의 id	
-
-	// t.detach();			
-	// 쓰레드 객체 t에서 실제 쓰레드를 분리
-	// - t를 이용해 만든 정보를 추출할 수 없음 : 활용할 일이 없음
-
-	if (t.joinable()) t.join();
-	// 연결된 쓰레드가 있는지 여부 확인
-
-	//t.join();			// 실질적으로 구동된 쓰레드에서 쓰레드 t의 종료를 기다림
-	cout << "Hello Main" << endl;
+	thread t1(Add);
+	thread t2(Sub);
+	t1.join();
+	t2.join();
+	cout << sum << endl;
 }
+
+// 멀티스레드 환경에서 데이터를 동시에 접근하게 될 때 문제가 생길 수 있다
+// 위에 기술한 sum++의 3개의 과정은 명령어의 실행이 Atomic하다고 보장할 수 없음
+
+// Atomic : All or Nothing (실행이 되거나 아예 안되거나)
+
+// Atomic Class로 감싸주면 3단계의 명령어 실행이 한 번에 수행된다.
+// - Atomic한 실행이 보장된다 !
+
+// 둘 중 먼저 접근한 애가 먼저 수행하고,
+// 그 아이의 수행이 완료될 때까지 CPU가 접근할 수 없도록 막아서 다른 애는 대기
