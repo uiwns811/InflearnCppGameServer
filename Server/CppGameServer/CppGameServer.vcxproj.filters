@@ -13,8 +13,12 @@
       <Filter>Main</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="AccountManager.cpp" />
+    <ClCompile Include="UserManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="AccountManager.h" />
+    <ClInclude Include="UserManager.h" />
   </ItemGroup>
 </Project>
