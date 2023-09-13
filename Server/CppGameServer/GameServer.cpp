@@ -11,16 +11,32 @@ mutex m;
 queue<int32> q;
 HANDLE handle;
 
+// [참고] CV : User-Level Object (커널 오브젝트 X)
+condition_variable cv;
+// mutex와 짝지어서 동작
+// event와 유사
+ 
+
+//#include <condition_variable>
+//condition_variable_any cv;
+
 void Producer()
 {
-	while (true) {
+	while (true) 
+	{
+		// 1. Lock을 잡고
+		// 2. 공유 변수 값 수정
+		// 3. Lock을 풀고
+		// 4. 조건변수를 통해 다른 쓰레드에게 통지
+
 		{
 			unique_lock<mutex> lock(m);
 			q.push(100);
 		}
 
-		::SetEvent(handle);				// 커널 오브젝트를 Signal 상태로 바꿔준다
-		this_thread::sleep_for(100ms);
+		cv.notify_one();		// wait중인 쓰레드가 있으면 딱 1개를 깨운다.
+		
+		//this_thread::sleep_for(100ms);
 	}
 }
 
@@ -28,19 +44,14 @@ void Consumer()
 {
 	while (true) {
 		::WaitForSingleObject(handle, INFINITE);
-		// 커널 오브젝트가 Signal : 그대로, Non-Signal : 이 스레드는 대기함.
-		// ManualReset == false : 여기서 Non-Signal 상태가 됨
-		// else
-		// ::ResetEvent(handle);
 
-
-		// 무한루프 돌면서 무의미한 실행하는 것을 막아준다.
+		// 이 상황에서 WaitForSingleObject와 lock 잡는 부분 사이에서 다른 애가 lock을 잡을 수 있음
 
 		unique_lock<mutex> lock(m);
 		if (!q.empty()) {
 			int32 data = q.front();
 			q.pop();
-			cout << data << endl;
+			cout << q.size() << endl;
 		}
 	}
 }
