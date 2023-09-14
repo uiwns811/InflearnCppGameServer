@@ -6,72 +6,66 @@
 #include <mutex>
 #include <Windows.h>
 
-atomic<bool> flag = false;
+atomic<bool> ready;
+int32 value;
+
+void Producer()
+{
+	value = 10;
+
+	ready.store(true, memory_order::memory_order_release);
+	//------------------절취선-----------------
+	// 위 명령이 아래로 내려갈 수 없다.
+	// 이 선 기준으로 앞뒤 순서를 바꿀 수 없는거지, 위에서 끼리끼리나 아래서 끼리끼리는 바뀔 수 있음
+}
+
+void Consumer()
+{
+	//------------------절취선-----------------
+	while (ready.load(memory_order::memory_order_acquire) == false)
+		;
+
+	cout << value << endl;
+}
 
 int main()
 {
+	ready = false;
+	value = 0;
+	thread t1(Producer);
+	thread t2(Consumer);
+	t1.join();
+	t2.join();
 
-	//flag = true;
-	flag.store(true, memory_order::memory_order_seq_cst);
+	// Memory Model (정책)
+	// 1) Sequentially Consistent (seq_cst)
+	// 2) Acquire-Release (acquire, release)
+	// 3) Relaxed (relaxed)
+	
+	// 1) seq_cst (가장 엄격 : 컴파일러 최적화 여지 적음 = 직관적)
+	// - 가시성 문제, 코드 가시성 문제 바로 해결 !
+	// - 결과 : 10
+	// 
+	// 2) acquire_release
+	// 중간 단계
+	// release 명령 이전의 메모리 명령들이 해당 명령 이후로 재배치 되는 것을 금지
+	// = 조건부 금지
+	// acqure로 같은 변수를 읽는 쓰레드가 있다면
+	// release 이전 명령들이 acquire하는 순간에 접근 가능하다 (가시성 문제 해결!)
+	// - value가 100% 10으로 나옴 (보장됨)
+	// 
+	// 3) relaxed (자유롭다 : 컴파일러 최적화 여지 높음 = 직관적X)
+	// 너무나도 자유롭다 - 코드 재배치도 멋대로 가능! 가시성 문제 해결X
+	// 가장 기본 조건 : 동일 객체에 대한 동일 관전 순서만 보장
+	// - 거의 사용하지 않는다.
 
-	//bool val = flag;
-	bool val = flag.load(memory_order::memory_order_seq_cst);
 
-	cout << flag.is_lock_free() << endl;
-	// 1 == true == lock이 없다.
-	// -> 이미 CPU 내부적으로 Lock을 걸 필요가 없는 atomic한 연산이다.
+	// Intel, AMD의 경우 애당초 순차적 일관성 보장!
+	// seq_cst 버전을 써도 별다른 부하가 없음
+	// ARM은 의미 있음.
 
-	// 이전 flag값을 prev에 넣고 flag 값을 수정
-	{
-		// bool prev = flag;
-		// flag = true;
-		bool prev = flag.exchange(true);
-		// -> flag의 값을 true로 변경하고, 변경 이전의 값을 리턴.
-		// 위의 두 연산을 원자적으로 실행하는 함수
-	}
-
-	// CAS (Compare-And-Swap) 조건부 수정
-	{
-		bool expected = false;
-		bool desired = true;
-		flag.compare_exchange_strong(expected, desired);
-
-		// Spurious Failure (가짜실패)
-		if (flag == expected) {
-			// 다른 쓰레드의 방해를 받아  interruption을 받아 중간에 실패할 수 있음
-			// if (묘한 상황) return false;
-
-			// expected = flag;
-			flag = desired;
-			return true;
-		}
-		else {
-			expected = flag;
-			return false;
-		}
-		// compare_exchange_strong : 위 연산을 원자적으로 실행해준다.
-		// expected와 같으면 desired로 수정해주고 true를 리턴
-		// expected와 같지 않으면 expected에 flag값을 넣어주고 false 리턴
-	}
-
-	bool expected = false;
-	bool desired = true;
-	flag.compare_exchange_weak(expected, desired);
-	// weak : 동작 자체는 동일하지만, 위에 적어놓은 Spurious Failure로 인해 중간에 실패하는 상황이 생길 수 있음
-	// strong : 한바퀴를 더 돌아 성공할 때까지 도전
-
-	// weak를 사용할거면 while루프를 해주는게 일반적.
-	// 성능 차이가 일반적으로 크게 없다.
+	// 메모리 베리어는 CPU에서 지원
+	// C++ 표준에서도 만들 수 있음
+	std::atomic_thread_fence(memory_order::memory_order_relaxed);
+	// Fence : 메모리 가시성 강제 + 메모리 재배치 금지
 }
-
-// 캐시와 CPU 내부 최적화 작업으로 인해 멀티쓰레드 환경에서는 문제가 발생할 수 있다.
-
-// 메모리모델 (Memory Model)
-// 
-// # Atomic (원자적) 연산 : CPU가 한 번에 처리할 수 있는 연산
-// 여러 단계 쪼개서 해야 하면 원자적이지 않음
-//
-// # Atomic 연산에 한해, 모든 쓰레드가 동일 객체에 대해 동일한 수정 순서를 관찰
-// - **동일 객체** 에 대해 **동일 순서**가 중요!!
-// == 과거로는 갈 수 없다. (절대 시간 순서를 반드시 지켜야 한다)
-// 
