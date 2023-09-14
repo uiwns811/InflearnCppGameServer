@@ -6,46 +6,80 @@
 #include <mutex>
 #include <Windows.h>
 
-int32 buffer[10'000][10'000];
+int32 x = 0;
+int32 y = 0;
+int32 r1 = 0;
+int32 r2 = 0;
+
+volatile bool ready;
+
+void Thread_1()
+{
+	while (!ready)
+		;
+	y = 1;		// Store y
+	r1 = x;		// Load x
+}
+
+void Thread_2()
+{
+	while (!ready)
+		;
+	x = 1;		// store x
+	r2 = y;		// load y
+}
 
 int main()
 {
-	memset(buffer, 0, sizeof(buffer));
+	int32 count = 0;
+	
+	while (true) {
+		ready = false;
+		count++;
 
-	{
-		uint64 start = GetTickCount64();
+		x = y = r1 = r2 = 0;
 
-		int64 sum = 0;
+		thread t1(Thread_1);
+		thread t2(Thread_2);
+
+		ready = true;
 		
-		for (int32 i = 0; i < 10'000; i++) {
-			for (int32 j = 0; j < 10'000; j++) {
-				sum += buffer[i][j];
-			}
-		}
+		t1.join();
+		t2.join();
 
-		uint64 end = GetTickCount64();
-		cout << "Elapsed Tick : " << end - start << endl;
+		if (r1 == 0 && r2 == 0)
+			break;
 	}
 
-	{
-		uint64 start = GetTickCount64();
-
-		int64 sum = 0;
-
-		for (int32 i = 0; i < 10'000; i++) {
-			for (int32 j = 0; j < 10'000; j++) {
-				sum += buffer[j][i];
-			}
-		}
-
-		uint64 end = GetTickCount64();
-		cout << "Elapsed Tick : " << end - start << endl;
-	}
+	cout << count << "번 만에 빠져나옴" << endl;
 }
 
-// 결과
-// Elapsed Tick : 172
-// Elapsed Tick : 641
+// 83973번 만에 빠져나옴
+// 거의 동시에 실행되는데 둘 중 먼저 실행되는 애가 있음. 그러면 어쨌든 r1이나 r2나 변경이 될 거임
+// but 멀티쓰레드 환경에서는 이러한 오류 (r1도 r2도 0)가 생길 수 있음
 
-// 위 경우의 수가 캐시히트율이 높음 (인접한 메모리 공간을 접근함)
-// 캐시미스 -> 램에 가서 데이터를 꺼내온다.
+// 왜?
+// 1. 가시성
+// 캐시 : CPU가 쓰거나 읽을 값이 캐시에 있으면 RAM까지 가지 않고 캐시에서 값을 가져옴
+// - CPU의 코어마다 각각의 캐시를 가지고 있음.
+// 읽어온 값, 쓰는 값이 실제 메모리에 쓰지 않고, 캐시에만 썼을 수도 있음
+// 단일쓰레드라면 내가 사용하던 캐시의 값에 적용되어 있으니 문제 없지만,
+// 멀티쓰레드에서는 내 캐시에 적용되지 못했고, 램에도 없음
+// == 가시성이 보장되지 않는다.
+// 
+// 2. 코드 재배치
+// 컴파일러가 내가 만든 코드를 기계어로 변환 -> CPU가 기계어 실행
+// 컴파일러는 100% 그대로 번역하지 않을 수도 있다.
+// 검수 중 효율성을 위해 코드 순서를 변경할 수 있다.
+// 컴파일러는 멀티쓰레드 환경을 고려하지 않기 때문이다.
+
+// -------------------------------------------
+// CPU는 명령어를 실행할 때 CPU 파이프라인(4가지 단계)을 거친다.
+// 1. Fetch : 명령어 가져오기
+// 2. Decode : 해독
+// 3. Execute : 실행
+// 4. Write-back : 결과를 다시 가져다줌
+// 
+// 명령어를 여러 개 요청했을 때,
+// 경우에 따라 순서를 바꿔서 수행하는게 더 효율적이라면 CPU가 알아서 순서를 변경해줄 수 있음
+// 단일 쓰레드 기준으로는 전혀 문제가 없으나, 멀티쓰레드에서는 로직이 꼬일 수 있음.
