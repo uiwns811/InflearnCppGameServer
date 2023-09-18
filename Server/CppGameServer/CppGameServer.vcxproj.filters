@@ -13,8 +13,20 @@
       <Filter>Main</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="ConcurrentQueue.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="ConcurrentStack.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="ConcurrentQueue.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="ConcurrentStack.h">
+      <Filter>Main</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
