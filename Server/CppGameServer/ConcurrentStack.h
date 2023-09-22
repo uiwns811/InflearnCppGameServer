@@ -52,3 +52,78 @@ private:
 	condition_variable m_condVar;
 };
 
+template <typename T>
+class LockFreeStack 
+{
+	struct Node
+	{
+		Node(const T& value) : data(value)
+		{
+
+		}
+
+		T data;
+		Node* next;
+	};
+
+public:
+	void Push(const T& value)
+	{
+		// 1) 새 노드를 만들고
+		// 2) 새 노드의 next = head
+		// 3) head = 새 노드
+		Node* node = new Node(value);
+		node->next = m_head;
+
+ 		/*if (m_head == node->next) {
+			m_head = node;
+			return true;
+		}
+		else {
+			node->next = m_head;
+			return false;
+		}*/
+
+		while (m_head.compare_exchange_weak(node->next, node) == false)
+		{
+			//node->next = m_head;
+		}
+
+		// 이 사이에 새치기 당하면?
+		//m_head = node;
+	}
+
+	bool TryPop(T& value)
+	{
+		// 1) head 읽기
+		// 2) head->next 읽기
+		// 3) head = head->next
+		// 4) data 추출해서 반환
+		// 5) 추출한 노드 삭제
+
+		Node* oldHead = m_head;
+		
+		/*if (m_head == oldHead) {
+			m_head = oldHead->next;
+			return true;
+		}
+		else {
+			oldHead = m_head;
+			return false;
+		}*/
+		while (oldHead && m_head.compare_exchange_weak(oldHead, oldHead->next) == false)
+		{
+			// oldHead = m_head;
+		}
+
+		if (oldHead == nullptr) return false;
+
+		// Exception X
+		value = oldHead->data;
+		//delete oldHead;
+		return true;
+	}
+
+private:
+	atomic<Node*> m_head;
+};
